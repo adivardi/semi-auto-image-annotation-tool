@@ -299,10 +299,10 @@ class MainGUI:
                 self.img = self.img.resize((wsize, baseH), Image.BICUBIC)
             self.img_cv = np.array(self.img)
         else:
-            open_cv_image = np.array(self.img)
-            # use data_loader process method. img should be BGR before
+            open_cv_image = cv2.cvtColor(np.array(self.img), cv2.COLOR_RGB2BGR)
+            # use data_loader process method. img should be BGR before. returns img in RGB
             self.img_cv, _ = self.data_loader.process(open_cv_image)
-            self.img = Image.fromarray(cv2.cvtColor(self.img_cv, cv2.COLOR_BGR2RGB)) # convert back to PIL
+            self.img = Image.fromarray(self.img_cv)     # convert back to PIL
 
         self.tkimg = ImageTk.PhotoImage(self.img)
         self.canvas.create_image(0, 0, image=self.tkimg, anchor=NW)
