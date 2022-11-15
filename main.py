@@ -6,6 +6,7 @@ Copyright {2018} {Viraj Mavani}
        http://www.apache.org/licenses/LICENSE-2.0
 """
 
+import sys
 from tkinter import *
 from tkinter import filedialog
 from PIL import Image, ImageTk
@@ -29,15 +30,25 @@ cur_path = pathlib.Path(__file__).parent.absolute().as_posix()
 sys.path.append(cur_path)
 os.chdir(cur_path)
 
+DEFAULT_MODEL_PATH = "/home/adi/Projects/traffic_lights/traffic_lights_detection/"
+DEFAULT_IMGS_DIR_PATH = "/home/adi/bags/2022-09-27_traffic_lights_data/2022-09-27-10-58-39_sat10/oak/frames"
+MERGE_NEARBY = False
+
 
 class MainGUI:
     def __init__(self, master):
 
         # to choose between keras or tensorflow models
-        self.keras_ = 1  # default
-        self.tensorflow_ = 0
+        self.model_type = "custom"  # default
         self.models_dir = ''  # gets updated as per user choice
         self.model_path = ''
+
+        sys.path.insert(1, DEFAULT_MODEL_PATH)
+        from pipeline_yolov3_autoware_classifier import PipelineYoloV3AutowareClassifier
+        from data_loaders import LoadImages
+        self.model_pipeline = PipelineYoloV3AutowareClassifier(debug=False)
+        self.data_loader = LoadImages(source_path="", crop=(0.2, 0, 0.6, 1.0), resize=(640, 480))
+
         self.parent = master
         self.parent.title("Semi Automatic Image Annotation Tool")
         self.frame = Frame(self.parent)
@@ -142,7 +153,7 @@ class MainGUI:
         self.zoomcanvas.grid(columnspan=2, sticky=W + E)
 
         # Image Editing Region
-        self.canvas = Canvas(self.frame, width=500, height=500)
+        self.canvas = Canvas(self.frame, width=640, height=500)
         self.canvas.grid(row=0, column=1, sticky=W + N)
         self.canvas.bind("<Button-1>", self.mouse_click)
         self.canvas.bind("<Motion>", self.mouse_move, "+")
@@ -176,7 +187,7 @@ class MainGUI:
         self.textBoxTh.pack(fill=X, side=TOP)
         self.enterthresh = Button(self.listPanel, text="Set", command=self.changeThresh).pack(fill=X, side=TOP)
 
-        if self.keras_:
+        if self.model_type == "keras":
             self.cocoLabels = config.labels_to_names.values()
         else:
             self.cocoLabels = tf_config.labels_to_names.values()
@@ -193,12 +204,15 @@ class MainGUI:
             self.mb1.menu.add_checkbutton(label=modelname, variable=self.modelIntVars[idxmodel])
 
         # STATUS BAR
-        self.statusBar = Frame(self.frame, width=500)
+        self.statusBar = Frame(self.frame, width=640)
         self.statusBar.grid(row=1, column=1, sticky=W + N)
         self.processingLabel = Label(self.statusBar, text="                      ")
         self.processingLabel.pack(side="left", fill=X)
         self.imageIdxLabel = Label(self.statusBar, text="                      ")
         self.imageIdxLabel.pack(side="right", fill=X)
+
+        # open default image dir
+        self.open_image_dir_from_path(DEFAULT_IMGS_DIR_PATH)
 
     def get_session(self):
         config = tf.ConfigProto()
@@ -230,14 +244,21 @@ class MainGUI:
         self.load_image(self.filenameBuffer)
 
     def open_image_dir(self):
-        self.imageDir = filedialog.askdirectory(title="Select Dataset Directory")
+        path = filedialog.askdirectory(title="Select Dataset Directory")
+        self.open_image_dir_from_path(path)
+
+    def open_image_dir_from_path(self, path):
+        self.imageDir = path
         if not self.imageDir:
             return None
+        print(self.imageDir)
         self.imageList = os.listdir(self.imageDir)
         self.imageList = sorted(self.imageList)
         self.imageTotal = len(self.imageList)
         self.filename = None
         self.imageDirPathBuffer = self.imageDir
+        print(self.imageTotal)
+        print(self.cur)
         self.load_image(self.imageDirPathBuffer + '/' + self.imageList[self.cur])
 
     def open_video_file(self):
@@ -495,21 +516,21 @@ class MainGUI:
 
     def add_model(self):
         for listidxmodel, list_model_name in enumerate(self.available_models()):
-            if(self.modelIntVars[listidxmodel].get()):
+            if (self.modelIntVars[listidxmodel].get()):
                 # check which model is it keras or tensorflow
-                self.model_path = os.path.join(self.models_dir,list_model_name)
+                self.model_path = os.path.join(self.models_dir, list_model_name)
                 # if its Tensorflow model then modify path
-                if('keras' in list_model_name):
-                    self.keras_ = 1
-                    self.tensorflow_ = 0
-                elif('tensorflow' in list_model_name):
-                    self.model_path = os.path.join(self.model_path,'frozen_inference_graph.pb')
-                    self.keras_ = 0
-                    self.tensorflow_ = 1
+                if ('keras' in list_model_name):
+                    self.model_type = "keras"
+                elif ('tensorflow' in list_model_name):
+                    self.model_path = os.path.join(self.model_path, 'frozen_inference_graph.pb')
+                    self.model_type = "tensorflow"
                     # change cocoLabels corresponding to tensorflow
                     self.cocoLabels = tf_config.labels_to_names.values()
+                elif 'torch' in list_model_name:
+                    self.model_type = "torch"
+                    self.model_path = os.path.join(self.models_dir, list_model_name)
                 break
-
 
     def add_labels_coco(self):
         for listidxcoco, list_label_coco in enumerate(self.cocoLabels):
@@ -531,10 +552,20 @@ class MainGUI:
         self.processingLabel.config(text="Processing     ")
         self.processingLabel.update_idletasks()
         open_cv_image = np.array(self.img)
-        # Convert RGB to BGR
-        opencvImage = open_cv_image[:, :, ::-1].copy()
+        if self.model_type == "custom":
+            # use data_loader process method. img should be BGR before
+            img, img_orig = self.data_loader.process(open_cv_image)
+            # execute pipeline
+            detections, invalid_detections = self.model_pipeline.execute(img)
+
+            if MERGE_NEARBY:
+                related_detections = self.pipeline.detect_tls_relationship(detections)
+                # self.pipeline.draw_relationship(img_orig, detections, related_detections)
+
         # if tensorflow
-        if self.tensorflow_ :
+        elif self.model_type == "tensorflow":
+            # Convert RGB to BGR
+            opencvImage = open_cv_image[:, :, ::-1].copy()
             detection_graph = tf.Graph()
             with detection_graph.as_default():
                 od_graph_def = tf.GraphDef()
@@ -553,12 +584,14 @@ class MainGUI:
 
             image_expanded = np.expand_dims(opencvImage, axis=0)
             (boxes, scores, labels, num) = sess.run(
-            [detection_boxes, detection_scores, detection_classes, num_detections],
-            feed_dict={image_tensor: image_expanded})
+                [detection_boxes, detection_scores, detection_classes, num_detections],
+                feed_dict={image_tensor: image_expanded})
             config_labels = tf_config.labels_to_names
             m_name = os.path.split((os.path.split(self.model_path)[0]))[1]
 
-        else:
+        elif self.model_type == "keras":
+            # Convert RGB to BGR
+            opencvImage = open_cv_image[:, :, ::-1].copy()
             keras.backend.tensorflow_backend.set_session(self.get_session())
             model_path = self.model_path
             model = models.load_model(model_path, backbone_name='resnet50')
@@ -566,6 +599,10 @@ class MainGUI:
             boxes, scores, labels = model.predict_on_batch(np.expand_dims(image, axis=0))
             config_labels = config.labels_to_names
             m_name = os.path.split(self.model_path)[1]
+        else:
+            print("unknown model")
+            return
+
         for idx, (box, label, score) in enumerate(zip(boxes[0], labels[0], scores[0])):
             curr_label_list = self.labelListBox.get(0, END)
             curr_label_list = list(curr_label_list)
@@ -577,7 +614,7 @@ class MainGUI:
 
             b = box
             # only if using tf models as keras and tensorflow have different coordinate order
-            if(self.tensorflow_):
+            if (self.model_type == "tensorflow"):
                 w, h = self.img.size
                 (b[0],b[1],b[2],b[3]) = (b[1]*w, b[0]*h, b[3]*w, b[2]*h)
             b = b.astype(int)
