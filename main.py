@@ -20,6 +20,7 @@ import numpy as np
 import tensorflow as tf
 import config
 import tf_config
+import custom_config
 import math
 from pascal_voc_writer import Writer
 
@@ -189,8 +190,10 @@ class MainGUI:
 
         if self.model_type == "keras":
             self.cocoLabels = config.labels_to_names.values()
-        else:
+        elif self.model_type == "tensorflow":
             self.cocoLabels = tf_config.labels_to_names.values()
+        else:
+            self.cocoLabels = custom_config.labels_to_names.values()
 
         self.cocoIntVars = []
         for idxcoco, label_coco in enumerate(self.cocoLabels):
@@ -556,11 +559,47 @@ class MainGUI:
             # use data_loader process method. img should be BGR before
             img, img_orig = self.data_loader.process(open_cv_image)
             # execute pipeline
-            detections, invalid_detections = self.model_pipeline.execute(img)
+            valid_detections, invalid_detections = self.model_pipeline.execute(img)
+
+            if not (valid_detections + invalid_detections):
+                print("No detected objects")
+                self.processingLabel.config(text="None detected       ")
+                return
 
             if MERGE_NEARBY:
-                related_detections = self.pipeline.detect_tls_relationship(detections)
+                related_detections = self.pipeline.detect_tls_relationship(valid_detections)
                 # self.pipeline.draw_relationship(img_orig, detections, related_detections)
+
+            detections = valid_detections + invalid_detections
+            m_name = "YoloV3+Classifier"
+            boxes = list()
+            labels = list()
+            scores = list()
+            masks = list()
+            for det in detections:
+                print(det)
+
+                boxes.append(det.bounding_box)  #xyxy
+                pipeline_label = f"{det.color}-{det.shape}"
+                print(f"pipeline_label: {pipeline_label}")
+                # convert pipeline labels to new labels
+                label = custom_config.pipeline_labels_new_labels[f"{det.color}"][f"{det.shape}"]
+                print(f"label: {label}")
+                labels.append(label)
+                # score only used for threshold filtering here, but not needed since done inside the pipeline
+                scores.append(det.class_confidence)
+
+
+            boxes = np.expand_dims(np.asarray(boxes), axis=0)
+            labels = np.expand_dims(np.asarray(labels), axis=0)
+            scores = np.expand_dims(np.asarray(scores), axis=0)
+            masks = np.expand_dims(np.asarray(masks), axis=0)
+
+            print(f"boxes: {boxes}")
+            print(f"labels: {labels}")
+            print(f"scores: {scores}")
+
+            config_labels = custom_config.labels_to_names
 
         # if tensorflow
         elif self.model_type == "tensorflow":
@@ -607,9 +646,11 @@ class MainGUI:
             curr_label_list = self.labelListBox.get(0, END)
             curr_label_list = list(curr_label_list)
             if score < self.thresh:
+                print(f"discarded detction with score {score}")
                 continue
 
             if config_labels[label] not in curr_label_list:
+                print(f"label {config_labels[label]} not in curr_label_list")
                 continue
 
             b = box
