@@ -32,6 +32,10 @@ cur_path = pathlib.Path(__file__).parent.absolute().as_posix()
 sys.path.append(cur_path)
 os.chdir(cur_path)
 
+# these should be equal for image to not appear stretched, but if not should not influence results
+VIEW_SCALE_X = 2
+VIEW_SCALE_Y = 2
+
 DEFAULT_MODEL_PATH = "/home/adi/Projects/traffic_lights/traffic_lights_detection/"
 DEFAULT_IMGS_DIR_PATH = "/home/adi/bags/2022-09-27_traffic_lights_data/2022-09-27-10-58-39_sat10/oak/frames"
 MERGE_NEARBY = True
@@ -56,6 +60,7 @@ class MainGUI:
 
         self.img_w_desired = IMG_RES_DESIRED[0] * (IMG_CROP[3] - IMG_CROP[1])
         self.img_h_desired = IMG_RES_DESIRED[1] * (IMG_CROP[2] - IMG_CROP[0])
+        print(f"desired image size: {self.img_w_desired} {self.img_h_desired}")
 
         self.parent = master
         self.parent.title("Semi Automatic Image Annotation Tool")
@@ -165,7 +170,7 @@ class MainGUI:
         self.zoomcanvas.grid(columnspan=2, sticky=W + E)
 
         # Image Editing Region
-        self.canvas = Canvas(self.frame, width=self.img_w_desired, height=self.img_h_desired)
+        self.canvas = Canvas(self.frame, width=int(self.img_w_desired * VIEW_SCALE_X), height=int(self.img_h_desired * VIEW_SCALE_Y))
         self.canvas.grid(row=0, column=1, sticky=W + N)
         self.canvas.bind("<Button-1>", self.mouse_click)
         self.canvas.bind("<Motion>", self.mouse_move, "+")
@@ -308,7 +313,9 @@ class MainGUI:
             self.img_cv, _ = self.data_loader.process(open_cv_image)
             self.img = Image.fromarray(self.img_cv)     # convert back to PIL
 
-        self.tkimg = ImageTk.PhotoImage(self.img)
+        # scale img view
+        self.scaled_view_img = self.img.resize((int(self.img.size[0] * VIEW_SCALE_X), int(self.img.size[1] * VIEW_SCALE_Y)), Image.BICUBIC)
+        self.tkimg = ImageTk.PhotoImage(self.scaled_view_img)
         self.canvas.create_image(0, 0, image=self.tkimg, anchor=NW)
         self.clear_bbox()
         print(f"-------------- {self.image_name} ------------------")
@@ -444,7 +451,12 @@ class MainGUI:
             self.EDIT = False
         x1, x2 = min(self.STATE['x'], event.x), max(self.STATE['x'], event.x)
         y1, y2 = min(self.STATE['y'], event.y), max(self.STATE['y'], event.y)
-        self.bboxList.append((x1, y1, x2, y2))
+        scaled_x1 = int(x1 / VIEW_SCALE_X)
+        scaled_x2 = int(x2 / VIEW_SCALE_X)
+        scaled_y1 = int(y1 / VIEW_SCALE_Y)
+        scaled_y2 = int(y2 / VIEW_SCALE_Y)
+
+        self.bboxList.append((scaled_x1, scaled_y1, scaled_x2, scaled_y2))
         o1 = self.canvas.create_oval(x1 - 3, y1 - 3, x1 + 3, y1 + 3, fill="red")
         o2 = self.canvas.create_oval(x2 - 3, y1 - 3, x2 + 3, y1 + 3, fill="red")
         o3 = self.canvas.create_oval(x2 - 3, y2 - 3, x2 + 3, y2 + 3, fill="red")
@@ -458,7 +470,7 @@ class MainGUI:
         self.labelsList.append(l)
         self.bboxId = None
         self.objectLabelList.append(str(self.currLabel))
-        self.objectListBox.insert(END, '(%d, %d) -> (%d, %d)' % (x1, y1, x2, y2) + ': ' + str(self.currLabel))
+        self.objectListBox.insert(END, '(%d, %d) -> (%d, %d)' % (scaled_x1, scaled_y1, scaled_x2, scaled_y2) + ': ' + str(self.currLabel))
         self.objectListBox.itemconfig(len(self.bboxIdList) - 1,
                                       fg=self.currBboxColor)
         self.currLabel = None
@@ -694,21 +706,23 @@ class MainGUI:
             b = b.astype(int)
 
             color = config.COLORS[len(self.bboxList) % len(config.COLORS)]
-            self.bboxId = self.canvas.create_rectangle(b[0], b[1],
-                                                       b[2], b[3],
+            scale_view_box = np.array(((int(b[0] * VIEW_SCALE_X), int(b[1] * VIEW_SCALE_Y),
+                                        int(b[2] * VIEW_SCALE_X), int(b[3] * VIEW_SCALE_Y))))
+            self.bboxId = self.canvas.create_rectangle(scale_view_box[0], scale_view_box[1],
+                                                       scale_view_box[2], scale_view_box[3],
                                                        width=2,
                                                        outline=color)
             self.bboxList.append((b[0], b[1], b[2], b[3]))
-            o1 = self.canvas.create_oval(b[0] - 3, b[1] - 3, b[0] + 3, b[1] + 3, fill="red")
-            o2 = self.canvas.create_oval(b[2] - 3, b[1] - 3, b[2] + 3, b[1] + 3, fill="red")
-            o3 = self.canvas.create_oval(b[2] - 3, b[3] - 3, b[2] + 3, b[3] + 3, fill="red")
-            o4 = self.canvas.create_oval(b[0] - 3, b[3] - 3, b[0] + 3, b[3] + 3, fill="red")
+            o1 = self.canvas.create_oval(scale_view_box[0] - 3, scale_view_box[1] - 3, scale_view_box[0] + 3, scale_view_box[1] + 3, fill="red")
+            o2 = self.canvas.create_oval(scale_view_box[2] - 3, scale_view_box[1] - 3, scale_view_box[2] + 3, scale_view_box[1] + 3, fill="red")
+            o3 = self.canvas.create_oval(scale_view_box[2] - 3, scale_view_box[3] - 3, scale_view_box[2] + 3, scale_view_box[3] + 3, fill="red")
+            o4 = self.canvas.create_oval(scale_view_box[0] - 3, scale_view_box[3] - 3, scale_view_box[0] + 3, scale_view_box[3] + 3, fill="red")
             self.bboxPointList.append(o1)
             self.bboxPointList.append(o2)
             self.bboxPointList.append(o3)
             self.bboxPointList.append(o4)
             self.bboxIdList.append(self.bboxId)
-            l = self.canvas.create_text(b[0], b[1] - 10, fill=color, text=label_str)
+            l = self.canvas.create_text(scale_view_box[0], scale_view_box[1] - 10, fill=color, text=label_str)
             self.labelsList.append(l)
             self.bboxId = None
             self.objectLabelList.append(str(label_str))
