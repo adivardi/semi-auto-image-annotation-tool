@@ -64,6 +64,8 @@ class MainGUI:
         self.parent.resizable(width=False, height=False)
 
         # Initialize class variables
+        self.image_path = None
+        self.image_name = None
         self.img = None
         self.tkimg = None
         self.imageDir = ''
@@ -73,6 +75,7 @@ class MainGUI:
         self.imageCur = 0
         self.cur = 0
         self.bboxIdList = []
+        self.labelsList = []
         self.bboxList = []
         self.bboxPointList = []
         self.o1 = None
@@ -279,10 +282,11 @@ class MainGUI:
         pass
 
     def load_image(self, file):
-        print("--------------------------------")
         self.img = Image.open(file)
+        self.image_path = file
+        self.image_name, _ = os.path.splitext(os.path.basename(self.image_path))
         self.imageCur = self.cur + 1
-        self.imageIdxLabel.config(text='  ||   Image Number: %d / %d' % (self.imageCur, self.imageTotal))
+        self.imageIdxLabel.config(text='  ||   Image: %s - Number: %d / %d' % (self.image_name, self.imageCur, self.imageTotal))
         # Resize to Pascal VOC format
         w, h = self.img.size
         self.org_w, self.org_h = self.img.size
@@ -307,6 +311,7 @@ class MainGUI:
         self.tkimg = ImageTk.PhotoImage(self.img)
         self.canvas.create_image(0, 0, image=self.tkimg, anchor=NW)
         self.clear_bbox()
+        print(f"-------------- {self.image_name} ------------------")
 
     def open_next(self, event=None):
         self.save()
@@ -449,6 +454,8 @@ class MainGUI:
         self.bboxPointList.append(o3)
         self.bboxPointList.append(o4)
         self.bboxIdList.append(self.bboxId)
+        l = self.canvas.create_text(x1 , y1 - 10, fill=self.currBboxColor, text=str(self.currLabel))
+        self.labelsList.append(l)
         self.bboxId = None
         self.objectLabelList.append(str(self.currLabel))
         self.objectListBox.insert(END, '(%d, %d) -> (%d, %d)' % (x1, y1, x2, y2) + ': ' + str(self.currLabel))
@@ -486,15 +493,17 @@ class MainGUI:
             self.currLabel = self.objectLabelList[idx]
 
         self.objectLabelList.pop(idx)
-        idx = idx*4
-        self.canvas.delete(self.bboxPointList[idx])
-        self.canvas.delete(self.bboxPointList[idx+1])
-        self.canvas.delete(self.bboxPointList[idx+2])
-        self.canvas.delete(self.bboxPointList[idx+3])
-        self.bboxPointList.pop(idx)
-        self.bboxPointList.pop(idx)
-        self.bboxPointList.pop(idx)
-        self.bboxPointList.pop(idx)
+        idx_pts = idx*4
+        self.canvas.delete(self.bboxPointList[idx_pts])
+        self.canvas.delete(self.bboxPointList[idx_pts+1])
+        self.canvas.delete(self.bboxPointList[idx_pts+2])
+        self.canvas.delete(self.bboxPointList[idx_pts+3])
+        self.bboxPointList.pop(idx_pts)
+        self.bboxPointList.pop(idx_pts)
+        self.bboxPointList.pop(idx_pts)
+        self.bboxPointList.pop(idx_pts)
+        self.canvas.delete(self.labelsList[idx])
+        self.labelsList.pop(idx)
 
     def cancel_bbox(self, event):
         if self.STATE['click'] == 1:
@@ -513,11 +522,13 @@ class MainGUI:
         self.canvas.delete(self.bboxPointList[(idx * 4) + 1])
         self.canvas.delete(self.bboxPointList[(idx * 4) + 2])
         self.canvas.delete(self.bboxPointList[(idx * 4) + 3])
+        self.canvas.delete(self.labelsList[idx])
         self.bboxPointList.pop(idx * 4)
         self.bboxPointList.pop(idx * 4)
         self.bboxPointList.pop(idx * 4)
         self.bboxPointList.pop(idx * 4)
         self.bboxIdList.pop(idx)
+        self.labelsList.pop(idx)
         self.bboxList.pop(idx)
         self.objectLabelList.pop(idx)
         self.objectListBox.delete(idx)
@@ -527,11 +538,14 @@ class MainGUI:
             self.canvas.delete(self.bboxIdList[idx])
         for idx in range(len(self.bboxPointList)):
             self.canvas.delete(self.bboxPointList[idx])
+        for idx in range(len(self.labelsList)):
+            self.canvas.delete(self.labelsList[idx])
         self.objectListBox.delete(0, len(self.bboxList))
         self.bboxIdList = []
         self.bboxList = []
         self.objectLabelList = []
         self.bboxPointList = []
+        self.labelsList.clear()
 
     def add_label(self):
         if self.textBox.get() != '':
@@ -606,23 +620,16 @@ class MainGUI:
 
                 boxes.append(det.bounding_box)  #xyxy
                 pipeline_label = f"{det.color}-{det.shape}"
-                print(f"pipeline_label: {pipeline_label}")
                 # convert pipeline labels to new labels
                 label = custom_config.pipeline_labels_new_labels[f"{det.color}"][f"{det.shape}"]
-                print(f"label: {label}")
                 labels.append(label)
                 # score only used for threshold filtering here, but not needed since done inside the pipeline
                 scores.append(det.class_confidence)
-
 
             boxes = np.expand_dims(np.asarray(boxes), axis=0)
             labels = np.expand_dims(np.asarray(labels), axis=0)
             scores = np.expand_dims(np.asarray(scores), axis=0)
             masks = np.expand_dims(np.asarray(masks), axis=0)
-
-            print(f"boxes: {boxes}")
-            print(f"labels: {labels}")
-            print(f"scores: {scores}")
 
             config_labels = custom_config.labels_to_names
 
@@ -674,8 +681,10 @@ class MainGUI:
                 print(f"discarded detction with score {score}")
                 continue
 
-            if config_labels[label] not in curr_label_list:
-                print(f"label {config_labels[label]} not in curr_label_list")
+            label_str = config_labels[label]
+
+            if label_str not in curr_label_list:
+                print(f"label {label_str} not in curr_label_list")
                 continue
 
             b = box
@@ -684,10 +693,12 @@ class MainGUI:
                 w, h = self.img.size
                 (b[0],b[1],b[2],b[3]) = (b[1]*w, b[0]*h, b[3]*w, b[2]*h)
             b = b.astype(int)
+
+            color = config.COLORS[len(self.bboxList) % len(config.COLORS)]
             self.bboxId = self.canvas.create_rectangle(b[0], b[1],
                                                        b[2], b[3],
                                                        width=2,
-                                                       outline=config.COLORS[len(self.bboxList) % len(config.COLORS)])
+                                                       outline=color)
             self.bboxList.append((b[0], b[1], b[2], b[3]))
             o1 = self.canvas.create_oval(b[0] - 3, b[1] - 3, b[0] + 3, b[1] + 3, fill="red")
             o2 = self.canvas.create_oval(b[2] - 3, b[1] - 3, b[2] + 3, b[1] + 3, fill="red")
@@ -698,10 +709,12 @@ class MainGUI:
             self.bboxPointList.append(o3)
             self.bboxPointList.append(o4)
             self.bboxIdList.append(self.bboxId)
+            l = self.canvas.create_text(b[0], b[1] - 10, fill=color, text=label_str)
+            self.labelsList.append(l)
             self.bboxId = None
-            self.objectLabelList.append(str(config_labels[label]))
+            self.objectLabelList.append(str(label_str))
             self.objectListBox.insert(END, '(%d, %d) -> (%d, %d)' % (b[0], b[1], b[2], b[3]) + ': ' +
-                                  str(config_labels[label])+' '+str(int(score*100))+'%'
+                                  str(label_str)+' '+str(int(score*100))+'%'
                                       +' '+ m_name)
             self.objectListBox.itemconfig(len(self.bboxIdList) - 1,
                                           fg=config.COLORS[(len(self.bboxIdList) - 1) % len(config.COLORS)])
