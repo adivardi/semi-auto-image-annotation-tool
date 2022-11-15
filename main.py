@@ -6,7 +6,7 @@ Copyright {2018} {Viraj Mavani}
        http://www.apache.org/licenses/LICENSE-2.0
 """
 
-import sys
+import cv2
 from tkinter import *
 from tkinter import filedialog
 from PIL import Image, ImageTk
@@ -23,6 +23,7 @@ import tf_config
 import custom_config
 import math
 from pascal_voc_writer import Writer
+import sys
 
 # make sure the file is inside semi-auto-image-annotation-tool-master
 import pathlib
@@ -34,6 +35,9 @@ os.chdir(cur_path)
 DEFAULT_MODEL_PATH = "/home/adi/Projects/traffic_lights/traffic_lights_detection/"
 DEFAULT_IMGS_DIR_PATH = "/home/adi/bags/2022-09-27_traffic_lights_data/2022-09-27-10-58-39_sat10/oak/frames"
 MERGE_NEARBY = False
+
+IMG_RES_DESIRED = (640, 480)
+IMG_CROP = (0.2, 0, 0.6, 1.0)
 
 
 class MainGUI:
@@ -48,7 +52,10 @@ class MainGUI:
         from pipeline_yolov3_autoware_classifier import PipelineYoloV3AutowareClassifier
         from data_loaders import LoadImages
         self.model_pipeline = PipelineYoloV3AutowareClassifier(debug=False)
-        self.data_loader = LoadImages(source_path="", crop=(0.2, 0, 0.6, 1.0), resize=(640, 480))
+        self.data_loader = LoadImages(source_path="", crop=IMG_CROP, resize=IMG_RES_DESIRED)
+
+        self.img_w_desired = IMG_RES_DESIRED[0] * (IMG_CROP[3] - IMG_CROP[1])
+        self.img_h_desired = IMG_RES_DESIRED[1] * (IMG_CROP[2] - IMG_CROP[0])
 
         self.parent = master
         self.parent.title("Semi Automatic Image Annotation Tool")
@@ -155,7 +162,7 @@ class MainGUI:
         self.zoomcanvas.grid(columnspan=2, sticky=W + E)
 
         # Image Editing Region
-        self.canvas = Canvas(self.frame, width=640, height=500)
+        self.canvas = Canvas(self.frame, width=self.img_w_desired, height=self.img_h_desired)
         self.canvas.grid(row=0, column=1, sticky=W + N)
         self.canvas.bind("<Button-1>", self.mouse_click)
         self.canvas.bind("<Motion>", self.mouse_move, "+")
@@ -208,7 +215,7 @@ class MainGUI:
             self.mb1.menu.add_checkbutton(label=modelname, variable=self.modelIntVars[idxmodel])
 
         # STATUS BAR
-        self.statusBar = Frame(self.frame, width=640)
+        self.statusBar = Frame(self.frame, width=self.img_w_desired)
         self.statusBar.grid(row=1, column=1, sticky=W + N)
         self.processingLabel = Label(self.statusBar, text="                      ")
         self.processingLabel.pack(side="left", fill=X)
@@ -272,22 +279,30 @@ class MainGUI:
         pass
 
     def load_image(self, file):
+        print("--------------------------------")
         self.img = Image.open(file)
         self.imageCur = self.cur + 1
         self.imageIdxLabel.config(text='  ||   Image Number: %d / %d' % (self.imageCur, self.imageTotal))
         # Resize to Pascal VOC format
         w, h = self.img.size
         self.org_w, self.org_h = self.img.size
-        if w >= h:
-            baseW = 500
-            wpercent = (baseW / float(w))
-            hsize = int((float(h) * float(wpercent)))
-            self.img = self.img.resize((baseW, hsize), Image.BICUBIC)
+        if self.model_type != "custom":
+            if w >= h:
+                baseW = 640
+                wpercent = (baseW / float(w))
+                hsize = int((float(h) * float(wpercent)))
+                self.img = self.img.resize((baseW, hsize), Image.BICUBIC)
+            else:
+                baseH = 480
+                wpercent = (baseH / float(h))
+                wsize = int((float(w) * float(wpercent)))
+                self.img = self.img.resize((wsize, baseH), Image.BICUBIC)
+            self.img_cv = np.array(self.img)
         else:
-            baseH = 500
-            wpercent = (baseH / float(h))
-            wsize = int((float(w) * float(wpercent)))
-            self.img = self.img.resize((wsize, baseH), Image.BICUBIC)
+            open_cv_image = np.array(self.img)
+            # use data_loader process method. img should be BGR before
+            self.img_cv, _ = self.data_loader.process(open_cv_image)
+            self.img = Image.fromarray(cv2.cvtColor(self.img_cv, cv2.COLOR_BGR2RGB)) # convert back to PIL
 
         self.tkimg = ImageTk.PhotoImage(self.img)
         self.canvas.create_image(0, 0, image=self.tkimg, anchor=NW)
@@ -558,12 +573,9 @@ class MainGUI:
     def automate(self):
         self.processingLabel.config(text="Processing     ")
         self.processingLabel.update_idletasks()
-        open_cv_image = np.array(self.img)
         if self.model_type == "custom":
-            # use data_loader process method. img should be BGR before
-            img, img_orig = self.data_loader.process(open_cv_image)
             # execute pipeline
-            valid_detections, invalid_detections = self.model_pipeline.execute(img)
+            valid_detections, invalid_detections = self.model_pipeline.execute(self.img_cv)
 
             if not (valid_detections + invalid_detections):
                 print("No detected objects")
@@ -608,7 +620,7 @@ class MainGUI:
         # if tensorflow
         elif self.model_type == "tensorflow":
             # Convert RGB to BGR
-            opencvImage = open_cv_image[:, :, ::-1].copy()
+            opencvImage = self.img_cv[:, :, ::-1].copy()
             detection_graph = tf.Graph()
             with detection_graph.as_default():
                 od_graph_def = tf.GraphDef()
@@ -634,7 +646,7 @@ class MainGUI:
 
         elif self.model_type == "keras":
             # Convert RGB to BGR
-            opencvImage = open_cv_image[:, :, ::-1].copy()
+            opencvImage = self.img_cv[:, :, ::-1].copy()
             keras.backend.tensorflow_backend.set_session(self.get_session())
             model_path = self.model_path
             model = models.load_model(model_path, backbone_name='resnet50')
