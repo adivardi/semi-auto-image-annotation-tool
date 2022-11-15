@@ -68,4 +68,5 @@ pipeline_labels_new_labels = {
             "down_right_arrow": 0,
             "cross": 0,
             },
+    "unknown": {"unknown": 0}
 }
