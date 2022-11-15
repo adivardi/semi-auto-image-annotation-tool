@@ -88,8 +88,9 @@ class MainGUI:
         self.objectLabelList = []
         self.EDIT = False
         self.autoSuggest = StringVar()
+        self.autoSuggest.set(str(1))
         self.writer = None
-        self.thresh = 0.5
+        self.thresh = 0.0
         self.org_h = 0
         self.org_w = 0
         # initialize mouse state
@@ -213,6 +214,9 @@ class MainGUI:
         self.processingLabel.pack(side="left", fill=X)
         self.imageIdxLabel = Label(self.statusBar, text="                      ")
         self.imageIdxLabel.pack(side="right", fill=X)
+
+        # load all classes by default
+        self.add_all_classes()
 
         # open default image dir
         self.open_image_dir_from_path(DEFAULT_IMGS_DIR_PATH)
@@ -506,7 +510,7 @@ class MainGUI:
         self.bboxPointList = []
 
     def add_label(self):
-        if self.textBox.get() is not '':
+        if self.textBox.get() != '':
             curr_label_list = self.labelListBox.get(0, END)
             curr_label_list = list(curr_label_list)
             if self.textBox.get() not in curr_label_list:
