@@ -364,9 +364,9 @@ class MainGUI:
 
     def mouse_click(self, event):
         # Check if Updating BBox
-        if self.canvas.find_enclosed(event.x - 5, event.y - 5, event.x + 5, event.y + 5):
+        if self.canvas.find_enclosed(event.x - 10, event.y - 10, event.x + 10, event.y + 10):
             self.EDIT = True
-            self.editPointId = int(self.canvas.find_enclosed(event.x - 5, event.y - 5, event.x + 5, event.y + 5)[0])
+            self.editPointId = int(self.canvas.find_enclosed(event.x - 10, event.y - 10, event.x + 10, event.y + 10)[0])
         else:
             self.EDIT = False
 
@@ -475,7 +475,16 @@ class MainGUI:
         self.bboxIdList.pop(idx)
         self.bboxList.pop(idx)
         self.objectListBox.delete(idx)
-        self.currLabel = self.objectLabelList[idx]
+
+        # if a label is selected, change box label
+        try:
+            labelidx = self.labelListBox.curselection()
+            self.currLabel = self.labelListBox.get(labelidx)
+            print(f"set label to {self.currLabel}")
+        except:
+            print("no curr label -> keep old label")
+            self.currLabel = self.objectLabelList[idx]
+
         self.objectLabelList.pop(idx)
         idx = idx*4
         self.canvas.delete(self.bboxPointList[idx])
