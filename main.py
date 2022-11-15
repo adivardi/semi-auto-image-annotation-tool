@@ -34,7 +34,7 @@ os.chdir(cur_path)
 
 DEFAULT_MODEL_PATH = "/home/adi/Projects/traffic_lights/traffic_lights_detection/"
 DEFAULT_IMGS_DIR_PATH = "/home/adi/bags/2022-09-27_traffic_lights_data/2022-09-27-10-58-39_sat10/oak/frames"
-MERGE_NEARBY = False
+MERGE_NEARBY = True
 
 IMG_RES_DESIRED = (640, 480)
 IMG_CROP = (0.2, 0, 0.6, 1.0)
@@ -606,8 +606,7 @@ class MainGUI:
                 return
 
             if MERGE_NEARBY:
-                related_detections = self.pipeline.detect_tls_relationship(valid_detections)
-                # self.pipeline.draw_relationship(img_orig, detections, related_detections)
+                related_detections = self.model_pipeline.detect_tls_relationship(valid_detections)
 
             detections = valid_detections + invalid_detections
             m_name = "YoloV3+Classifier"
