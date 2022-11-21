@@ -341,6 +341,7 @@ class MainGUI:
             self.automate()
 
     def save(self):
+        # save annotations to annotations.csv and VOC format
         if self.filenameBuffer is None:
             w, h = self.img.size
             self.writer = Writer(os.path.join(self.imageDirPathBuffer , self.imageList[self.cur]), w, h)
@@ -373,6 +374,33 @@ class MainGUI:
             baseName = os.path.splitext(self.imageList[self.cur])[0]
             self.writer.save('annotations/annotations_voc/' + baseName + '.xml')
             self.writer = None
+
+        # TODO save in YOLO format
+        # One row per object
+        # Each row is class x_center y_center width height format.
+        # Box coordinates must be in normalized xywh format (from 0 - 1).
+        # If your boxes are in pixels, divide x_center and width by image width, and y_center and height by image height.
+        # Class numbers are zero-indexed (start from 0).
+
+        img_w, img_h = self.img.size
+        if self.bboxList:
+            results_file_path = self.imageDir + "/" + self.image_name + ".txt"
+            with open(results_file_path, 'w') as write_file:
+                for idx, box in enumerate(self.bboxList):
+                    xywh = self.xyxy_to_xywhnorm(box, img_w, img_h)
+                    label_idx = [key for key, value in custom_config.labels_to_names.items() if value == self.objectLabelList[idx]]     # TODO fix this
+                    write_file.write(f"{label_idx[0]} {xywh[0]} {xywh[1]} {xywh[2]} {xywh[3]}\n")
+
+            print(f"saved to file: {results_file_path}")
+
+    # convert bounding box from [min_x, min_y, max_x, max_y] to normalized [center_x, center_y, w, h]
+    def xyxy_to_xywhnorm(self, box_xyxy, img_width, img_height):
+        x_center = ((box_xyxy[2] + box_xyxy[0]) / 2) / img_width
+        y_center = ((box_xyxy[3] + box_xyxy[1]) / 2) / img_height
+        width = (box_xyxy[2] - box_xyxy[0]) / img_width
+        height = (box_xyxy[3] - box_xyxy[1]) / img_height
+
+        return (x_center, y_center, width, height)
 
     def mouse_click(self, event):
         # Check if Updating BBox
