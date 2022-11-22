@@ -322,9 +322,16 @@ class MainGUI:
 
     def open_next(self, event=None):
         self.save()
-        if self.cur < len(self.imageList):
+        next_img_path = None
+        while self.cur < len(self.imageList):
             self.cur += 1
-            self.load_image(self.imageDirPathBuffer + '/' + self.imageList[self.cur])
+            next_img_path = self.imageDirPathBuffer + '/' + self.imageList[self.cur]
+            if os.path.splitext(next_img_path)[1] in [".jpg", ".png"]:
+                break
+        if not next_img_path:
+            return
+
+        self.load_image(next_img_path)
         self.processingLabel.config(text="                      ")
         self.processingLabel.update_idletasks()
         if self.autoSuggest.get() == str(1):
@@ -332,9 +339,16 @@ class MainGUI:
 
     def open_previous(self, event=None):
         self.save()
-        if self.cur > 0:
+        next_img_path = None
+        while self.cur > 0:
             self.cur -= 1
-            self.load_image(self.imageDirPathBuffer + '/' + self.imageList[self.cur])
+            next_img_path = self.imageDirPathBuffer + '/' + self.imageList[self.cur]
+            if os.path.splitext(next_img_path)[1] in [".jpg", ".png"]:
+                break
+        if not next_img_path:
+            return
+
+        self.load_image(next_img_path)
         self.processingLabel.config(text="                      ")
         self.processingLabel.update_idletasks()
         if self.autoSuggest.get() == str(1):
