@@ -37,7 +37,6 @@ VIEW_SCALE_X = 2
 VIEW_SCALE_Y = 2
 
 DEFAULT_MODEL_PATH = "/home/adi/Projects/traffic_lights/traffic_lights_detection/"
-DEFAULT_IMGS_DIR_PATH = "/home/adi/bags/2022-09-27_traffic_lights_data/2022-09-27-10-58-39_sat10/oak/frames"
 MERGE_NEARBY = True
 
 IMG_RES_DESIRED = (640, 480)
@@ -45,7 +44,7 @@ IMG_CROP = (0.2, 0, 0.6, 1.0)
 
 
 class MainGUI:
-    def __init__(self, master):
+    def __init__(self, master, default_imgs_dir=None):
 
         # to choose between keras or tensorflow models
         self.model_type = "custom"  # default
@@ -234,7 +233,8 @@ class MainGUI:
         self.add_all_classes()
 
         # open default image dir
-        self.open_image_dir_from_path(DEFAULT_IMGS_DIR_PATH)
+        if default_imgs_dir:
+            self.open_image_dir_from_path(default_imgs_dir)
 
     def get_session(self):
         config = tf.ConfigProto()
@@ -273,7 +273,7 @@ class MainGUI:
         self.imageDir = path
         if not self.imageDir:
             return None
-        print(self.imageDir)
+        print(f"Opening image directory {self.imageDir}")
         self.imageList = os.listdir(self.imageDir)
         self.imageList = sorted(self.imageList)
         self.imageTotal = len(self.imageList)
@@ -777,8 +777,11 @@ class MainGUI:
 
 
 if __name__ == '__main__':
+    default_imgs_dir = None
+    if len(sys.argv) >= 2:
+        default_imgs_dir = sys.argv[1]
     root = Tk()
     imgicon = PhotoImage(file='icon.gif')
     root.tk.call('wm', 'iconphoto', root._w, imgicon)
-    tool = MainGUI(root)
+    tool = MainGUI(root, default_imgs_dir)
     root.mainloop()
