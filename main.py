@@ -521,7 +521,7 @@ class MainGUI:
         try:
             if self.zoomImgId:
                 self.zoomcanvas.delete(self.zoomImgId)
-            self.zoomImg = self.img.copy()
+            self.zoomImg = self.scaled_view_img.copy()
             self.zoomImgCrop = self.zoomImg.crop(((event.x - 25), (event.y - 25), (event.x + 25), (event.y + 25)))
             self.zoomImgCrop = self.zoomImgCrop.resize((150, 150))
             self.tkZoomImg = ImageTk.PhotoImage(self.zoomImgCrop)
