@@ -178,6 +178,7 @@ class MainGUI:
         self.parent.bind("<Key-Left>", self.open_previous)
         self.parent.bind("<Key-Right>", self.open_next)
         self.parent.bind("Escape", self.cancel_bbox)
+        self.parent.bind("d", lambda event: self.automate())
 
         # Labels and Bounding Box Lists Panel
         self.listPanel = Frame(self.frame)
