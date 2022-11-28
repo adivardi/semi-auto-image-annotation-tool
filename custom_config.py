@@ -24,7 +24,7 @@ labels_to_names = {
 }
 
 
-pipeline_labels_new_labels = {
+pipeline_labels_to_new_labels = {
     "red": {
         "circle":  1,
         "left_arrow": 7,
@@ -72,5 +72,26 @@ pipeline_labels_new_labels = {
     "unknown": {
         "unknown": 0,
         "OVERLAP": 0,
+    }
+}
+
+separate_tls_to_combined_tls = {
+    1: {
+        6: 10,
+        5: 13,
+        4: 16,
+        9: 19,
+    },
+    2: {
+        6: 11,
+        5: 14,
+        4: 17,
+        9: 20,
+    },
+    3: {
+        6: 12,
+        5: 15,
+        4: 18,
+        9: 21,
     }
 }

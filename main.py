@@ -54,7 +54,7 @@ class MainGUI:
         sys.path.insert(1, DEFAULT_MODEL_PATH)
         from pipeline_yolov3_autoware_classifier import PipelineYoloV3AutowareClassifier
         from data_loaders import LoadImages
-        self.model_pipeline = PipelineYoloV3AutowareClassifier(debug=False)
+        self.model_pipeline = PipelineYoloV3AutowareClassifier(debug=False, duplicate_label_for_multiple_tls=True)
         self.data_loader = LoadImages(source_path="", crop=IMG_CROP, resize=IMG_RES_DESIRED)
 
         self.img_w_desired = IMG_RES_DESIRED[0] * (IMG_CROP[3] - IMG_CROP[1])
@@ -235,6 +235,7 @@ class MainGUI:
         # open default image dir
         if default_imgs_dir:
             self.open_image_dir_from_path(default_imgs_dir)
+            self.automate()
 
     def get_session(self):
         config = tf.ConfigProto()
@@ -652,7 +653,7 @@ class MainGUI:
         self.processingLabel.update_idletasks()
         if self.model_type == "custom":
             # execute pipeline
-            valid_detections, invalid_detections = self.model_pipeline.execute(self.img_cv)
+            valid_detections, invalid_detections, multi_tls = self.model_pipeline.execute(self.img_cv)
 
             if not (valid_detections + invalid_detections):
                 print("No detected objects")
@@ -674,10 +675,31 @@ class MainGUI:
                 boxes.append(det.bounding_box)  #xyxy
                 pipeline_label = f"{det.color}-{det.shape}"
                 # convert pipeline labels to new labels
-                label = custom_config.pipeline_labels_new_labels[f"{det.color}"][f"{det.shape}"]
+                label = custom_config.pipeline_labels_to_new_labels[f"{det.color}"][f"{det.shape}"]
                 labels.append(label)
                 # score only used for threshold filtering here, but not needed since done inside the pipeline
                 scores.append(det.class_confidence)
+
+            for mtl in multi_tls:
+                if len(mtl[0].tls) != 2:
+                    print(f"Only supports multiple TL with 2 TLs, current has {len(mtl[0].tls)}")
+                    continue
+
+                label0 = custom_config.pipeline_labels_to_new_labels[f"{mtl[0].tls[0].color}"][f"{mtl[0].tls[0].shape}"]
+                label1 = custom_config.pipeline_labels_to_new_labels[f"{mtl[0].tls[1].color}"][f"{mtl[0].tls[1].shape}"]
+
+                try:
+                    label = custom_config.separate_tls_to_combined_tls[label0][label1]
+                except KeyError:
+                    try:
+                        label = custom_config.separate_tls_to_combined_tls[label1][label0]
+                    except KeyError:
+                        print(f"Could not convert multi TL to label: {mtl}")
+                        continue
+
+                boxes.append(mtl[1])  # all same box
+                scores.append(mtl[0].tls[0].class_confidence)  # all same score
+                labels.append(label)
 
             boxes = np.expand_dims(np.asarray(boxes), axis=0)
             labels = np.expand_dims(np.asarray(labels), axis=0)
