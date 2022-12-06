@@ -113,9 +113,9 @@ class MainGUI:
 
         # initialize annotation file
         self.anno_filename = 'annotations.csv'
-        self.annotation_file = open('annotations/' + self.anno_filename, 'w+')
-        self.annotation_file.write("")
-        self.annotation_file.close()
+        self.anno_filepath = 'annotations/' + self.anno_filename
+        with open(self.anno_filepath, 'w+') as annotation_file:
+            annotation_file.write("")
 
         # ------------------ GUI ---------------------
 
@@ -366,38 +366,20 @@ class MainGUI:
 
     def save(self):
         # save annotations to annotations.csv and VOC format
-        if self.filenameBuffer is None: # None when opened a directory
-            w, h = self.img.size
-            self.writer = Writer(os.path.join(self.imageDirPathBuffer , self.imageList[self.cur]), w, h)
-            self.annotation_file = open('annotations/' + self.anno_filename, 'a')
+        w, h = self.img.size
+        self.writer = Writer(self.image_path, w, h)
+        with open(self.anno_filepath, 'a') as annotation_file:
             for idx, item in enumerate(self.bboxList):
                 x1, y1, x2, y2 = self.bboxList[idx]
                 self.writer.addObject(str(self.objectLabelList[idx]), x1, y1, x2, y2)
-                self.annotation_file.write(self.imageDirPathBuffer + '/' + self.imageList[self.cur] + ',' +
-                                           ','.join(map(str, self.bboxList[idx])) + ',' + str(self.objectLabelList[idx])
-                                           + '\n')
-            self.annotation_file.close()
-            baseName = os.path.splitext(self.imageList[self.cur])[0]
-            save_dir = 'annotations/annotations_voc/'
-            save_path = save_dir + baseName + '.xml'
-            if(not os.path.exists(save_dir)):
-                os.mkdir(save_dir)
-
-            self.writer.save(save_path)
-            self.writer = None
-        else:   # when opened a single image
-            w, h = self.img.size
-            self.writer = Writer(self.filenameBuffer, w, h)
-            self.annotation_file = open('annotations/' + self.anno_filename, 'a')
-            for idx, item in enumerate(self.bboxList):
-                x1, y1, x2, y2 = self.bboxList[idx]
-                self.writer.addObject(str(self.objectLabelList[idx]), x1, y1, x2, y2)
-                self.annotation_file.write(self.filenameBuffer + ',' + ','.join(map(str, self.bboxList[idx])) + ','
-                                           + str(self.objectLabelList[idx]) + '\n')
-            self.annotation_file.close()
-            baseName = self.image_name
-            self.writer.save('annotations/annotations_voc/' + baseName + '.xml')
-            self.writer = None
+                annotation_file.write(self.image_path + ',' +
+                                            ','.join(map(str, self.bboxList[idx])) + ',' + str(self.objectLabelList[idx])
+                                            + '\n')
+        save_dir = 'annotations/annotations_voc/'
+        save_path = save_dir + self.image_name + '.xml'
+        if(not os.path.exists(save_dir)):
+            os.mkdir(save_dir)
+        self.writer.save(save_path)
 
         # One row per object
         # Each row is class x_center y_center width height format.
