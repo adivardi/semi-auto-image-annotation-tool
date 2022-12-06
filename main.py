@@ -366,7 +366,7 @@ class MainGUI:
 
     def save(self):
         # save annotations to annotations.csv and VOC format
-        if self.filenameBuffer is None:
+        if self.filenameBuffer is None: # None when opened a directory
             w, h = self.img.size
             self.writer = Writer(os.path.join(self.imageDirPathBuffer , self.imageList[self.cur]), w, h)
             self.annotation_file = open('annotations/' + self.anno_filename, 'a')
@@ -385,7 +385,7 @@ class MainGUI:
 
             self.writer.save(save_path)
             self.writer = None
-        else:
+        else:   # when opened a single image
             w, h = self.img.size
             self.writer = Writer(self.filenameBuffer, w, h)
             self.annotation_file = open('annotations/' + self.anno_filename, 'a')
@@ -395,7 +395,7 @@ class MainGUI:
                 self.annotation_file.write(self.filenameBuffer + ',' + ','.join(map(str, self.bboxList[idx])) + ','
                                            + str(self.objectLabelList[idx]) + '\n')
             self.annotation_file.close()
-            baseName = os.path.splitext(self.imageList[self.cur])[0]
+            baseName = self.image_name
             self.writer.save('annotations/annotations_voc/' + baseName + '.xml')
             self.writer = None
 
