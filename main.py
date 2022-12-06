@@ -388,15 +388,18 @@ class MainGUI:
         # Class numbers are zero-indexed (start from 0).
 
         img_w, img_h = self.img.size
-        if self.bboxList:
-            results_file_path = os.path.splitext(self.image_path)[0] + ".txt"
-            with open(results_file_path, 'w') as write_file:
-                for idx, box in enumerate(self.bboxList):
-                    xywh = self.xyxy_to_xywhnorm(box, img_w, img_h)
-                    label_idx = [key for key, value in custom_config.labels_to_names.items() if value == self.objectLabelList[idx]]     # TODO fix this
-                    write_file.write(f"{label_idx[0]} {xywh[0]} {xywh[1]} {xywh[2]} {xywh[3]}\n")
+        try:
+            if self.bboxList:
+                results_file_path = os.path.splitext(self.image_path)[0] + ".txt"
+                with open(results_file_path, 'w') as write_file:
+                    for idx, box in enumerate(self.bboxList):
+                        xywh = self.xyxy_to_xywhnorm(box, img_w, img_h)
+                        label_idx = [key for key, value in custom_config.labels_to_names.items() if value == self.objectLabelList[idx]]     # TODO fix this
+                        write_file.write(f"{label_idx[0]} {xywh[0]} {xywh[1]} {xywh[2]} {xywh[3]}\n")
 
-            print(f"saved to file: {results_file_path}")
+                print(f"saved to file: {results_file_path}")
+        except PermissionError:
+            print(f"Skipped saving file: {results_file_path} because not permission")
 
     # convert bounding box from [min_x, min_y, max_x, max_y] to normalized [center_x, center_y, w, h]
     def xyxy_to_xywhnorm(self, box_xyxy, img_width, img_height):
