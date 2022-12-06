@@ -44,7 +44,7 @@ IMG_CROP = (0.2, 0, 0.6, 1.0)
 
 
 class MainGUI:
-    def __init__(self, master, default_imgs_dir=None):
+    def __init__(self, master, default_imgs_path=None):
 
         # to choose between keras or tensorflow models
         self.model_type = "custom"  # default
@@ -234,8 +234,13 @@ class MainGUI:
         self.add_all_classes()
 
         # open default image dir
-        if default_imgs_dir:
-            self.open_image_dir_from_path(default_imgs_dir)
+        if default_imgs_path:
+            if os.path.isdir(default_imgs_path):
+                self.open_image_dir_from_path(default_imgs_path)
+            elif os.path.isfile(default_imgs_path):
+                self.open_image_from_path(default_imgs_path)
+            else:
+                raise ValueError(f"default_imgs_path is a special file - {default_imgs_path}")
             self.automate()
 
     def get_session(self):
@@ -264,7 +269,10 @@ class MainGUI:
                                                                                     ("all files", "*.*")))
         if not self.filename:
             return None
-        self.filenameBuffer = self.filename
+        self.open_image_from_path(self.filename)
+
+    def open_image_from_path(self, path):
+        self.filenameBuffer = path
         self.load_image(self.filenameBuffer)
 
     def open_image_dir(self):
@@ -800,11 +808,11 @@ class MainGUI:
 
 
 if __name__ == '__main__':
-    default_imgs_dir = None
+    default_imgs_path = None
     if len(sys.argv) >= 2:
-        default_imgs_dir = sys.argv[1]
+        default_imgs_path = sys.argv[1]
     root = Tk()
     imgicon = PhotoImage(file='icon.gif')
     root.tk.call('wm', 'iconphoto', root._w, imgicon)
-    tool = MainGUI(root, default_imgs_dir)
+    tool = MainGUI(root, default_imgs_path)
     root.mainloop()
