@@ -399,7 +399,6 @@ class MainGUI:
             self.writer.save('annotations/annotations_voc/' + baseName + '.xml')
             self.writer = None
 
-        # TODO save in YOLO format
         # One row per object
         # Each row is class x_center y_center width height format.
         # Box coordinates must be in normalized xywh format (from 0 - 1).
@@ -408,7 +407,7 @@ class MainGUI:
 
         img_w, img_h = self.img.size
         if self.bboxList:
-            results_file_path = self.imageDir + "/" + self.image_name + ".txt"
+            results_file_path = os.path.splitext(self.image_path)[0] + ".txt"
             with open(results_file_path, 'w') as write_file:
                 for idx, box in enumerate(self.bboxList):
                     xywh = self.xyxy_to_xywhnorm(box, img_w, img_h)
@@ -679,7 +678,7 @@ class MainGUI:
             scores = list()
             masks = list()
             for det in detections:
-                print(det)
+                print(f"{det} {det.bounding_box}")
 
                 boxes.append(det.bounding_box)  #xyxy
                 pipeline_label = f"{det.color}-{det.shape}"
