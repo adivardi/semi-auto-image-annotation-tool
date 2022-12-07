@@ -7,6 +7,7 @@ Copyright {2018} {Viraj Mavani}
 """
 
 import cv2
+import glob
 from tkinter import *
 from tkinter import filedialog
 from PIL import Image, ImageTk
@@ -286,13 +287,14 @@ class MainGUI:
         if not self.imageDir:
             return None
         print(f"Opening image directory {self.imageDir}")
-        self.imageList = os.listdir(self.imageDir)
+        self.imageList = [os.path.basename(item) for i in [glob.glob(f"{self.imageDir}/*{ext}") for ext in IMG_FORMATS] for item in i]
         self.imageList = sorted(self.imageList)
         self.imageTotal = len(self.imageList)
+        if not self.imageTotal:
+            print(f"No images found in directory {self.imageDir}")
+            return
         self.filename = None
         self.imageDirPathBuffer = self.imageDir
-        print(self.imageTotal)
-        print(self.cur)
         self.load_image(self.imageDirPathBuffer + '/' + self.imageList[self.cur])
 
     def open_video_file(self):
