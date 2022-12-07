@@ -334,12 +334,13 @@ class MainGUI:
     def open_next(self, event=None):
         self.save()
         next_img_path = None
-        while self.cur < len(self.imageList):
+        while self.cur < len(self.imageList) - 1:
             self.cur += 1
             next_img_path = self.imageDirPathBuffer + '/' + self.imageList[self.cur]
             if os.path.splitext(next_img_path)[1] in [".jpg", ".png"]:
                 break
         if not next_img_path:
+            print("Reached last image in the list")
             return
 
         self.load_image(next_img_path)
