@@ -42,6 +42,7 @@ MERGE_NEARBY = True
 IMG_RES_DESIRED = (640, 480)
 IMG_CROP = (0.2, 0, 0.6, 1.0)
 
+IMG_FORMATS = ['.bmp', '.jpg', '.jpeg', '.png', '.tif']
 
 class MainGUI:
     def __init__(self, master, default_imgs_path=None):
@@ -337,7 +338,7 @@ class MainGUI:
         while self.cur < len(self.imageList) - 1:
             self.cur += 1
             next_img_path = self.imageDirPathBuffer + '/' + self.imageList[self.cur]
-            if os.path.splitext(next_img_path)[1] in [".jpg", ".png"]:
+            if os.path.splitext(next_img_path)[1] in IMG_FORMATS:
                 break
         if not next_img_path:
             print("Reached last image in the list")
@@ -355,7 +356,7 @@ class MainGUI:
         while self.cur > 0:
             self.cur -= 1
             next_img_path = self.imageDirPathBuffer + '/' + self.imageList[self.cur]
-            if os.path.splitext(next_img_path)[1] in [".jpg", ".png"]:
+            if os.path.splitext(next_img_path)[1] in IMG_FORMATS:
                 break
         if not next_img_path:
             return
