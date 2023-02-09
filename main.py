@@ -38,12 +38,17 @@ VIEW_SCALE_X = 2
 VIEW_SCALE_Y = 2
 
 DEFAULT_MODEL_PATH = "/home/adi/Projects/traffic_lights/traffic_lights_detection/"
+sys.path.insert(1, DEFAULT_MODEL_PATH)
+import bounding_box_manipulation
+
 MERGE_NEARBY = True
 
 IMG_RES_DESIRED = (640, 480)
 IMG_CROP = (0.2, 0, 0.6, 1.0)
+IMG_RES_DEFAULT = (1920, 1080)
 
 IMG_FORMATS = ['.bmp', '.jpg', '.jpeg', '.png', '.tif']
+
 
 class MainGUI:
     def __init__(self, master, default_imgs_path=None):
@@ -53,14 +58,15 @@ class MainGUI:
         self.models_dir = ''  # gets updated as per user choice
         self.model_path = ''
 
-        sys.path.insert(1, DEFAULT_MODEL_PATH)
         from pipeline_yolov3_autoware_classifier import PipelineYoloV3AutowareClassifier
         from data_loaders import LoadImages
         self.model_pipeline = PipelineYoloV3AutowareClassifier(debug=False, duplicate_label_for_multiple_tls=True)
         self.data_loader = LoadImages(source_path="", crop=IMG_CROP, resize=IMG_RES_DESIRED)
 
-        self.img_w_desired = IMG_RES_DESIRED[0] * (IMG_CROP[3] - IMG_CROP[1])
-        self.img_h_desired = IMG_RES_DESIRED[1] * (IMG_CROP[2] - IMG_CROP[0])
+        img_size = IMG_RES_DESIRED if IMG_RES_DESIRED else IMG_RES_DEFAULT
+        img_crop = IMG_CROP if IMG_CROP else (0, 0, 1.0, 1.0)
+        self.img_w_desired = int(img_size[0] * (img_crop[3] - img_crop[1]))
+        self.img_h_desired = int(img_size[1] * (img_crop[2] - img_crop[0]))
         print(f"desired image size: {self.img_w_desired} {self.img_h_desired}")
 
         self.parent = master
@@ -324,7 +330,8 @@ class MainGUI:
         else:
             open_cv_image = cv2.cvtColor(np.array(self.img), cv2.COLOR_RGB2BGR)
             # use data_loader process method. img should be BGR before. returns img in RGB
-            self.img_cv, _ = self.data_loader.process(open_cv_image)
+            self.img_cv, _, self.orig_img_shape, self.resize_ratio, self.resize_padding, self.crop_deltas = self.data_loader.process(
+                open_cv_image)
             self.img = Image.fromarray(self.img_cv)     # convert back to PIL
 
         # scale img view
@@ -386,34 +393,45 @@ class MainGUI:
             os.mkdir(save_dir)
         self.writer.save(save_path)
 
+        # YOLO format
         # One row per object
         # Each row is class x_center y_center width height format.
-        # Box coordinates must be in normalized xywh format (from 0 - 1).
+        # Box coordinates and sizes must be in normalized xywh format (from 0 - 1), w.r.t. to original image.
         # If your boxes are in pixels, divide x_center and width by image width, and y_center and height by image height.
         # Class numbers are zero-indexed (start from 0).
-
-        img_w, img_h = self.img.size
         try:
             if self.bboxList:
                 results_file_path = os.path.splitext(self.image_path)[0] + ".txt"
                 with open(results_file_path, 'w') as write_file:
-                    for idx, box in enumerate(self.bboxList):
-                        xywh = self.xyxy_to_xywhnorm(box, img_w, img_h)
+                    for idx, box_xyxy in enumerate(self.bboxList):
+                        # convert from xyxy to xywh
+                        box_xywh = bounding_box_manipulation.xyxy_to_xywh(box_xyxy)
+
+                        # convert box from xywh in the processed image coords to xywh in the original image coords
+                        box_xywh_corrected = bounding_box_manipulation.convert_box_from_processed_img_to_orig_img(
+                            box_xywh, (self.img.size[1], self.img.size[0]), self.orig_img_shape[:2],
+                            self.resize_ratio, self.resize_padding, self.crop_deltas)
+
+                        # normalize box w.r.t orig img size
+                        box_xywh_norm = bounding_box_manipulation.xywh_to_xywhnorm(
+                            box_xywh_corrected, self.orig_img_shape[1], self.orig_img_shape[0])
+                        print(f"box_xywh_norm: {box_xywh_norm}")
+
                         label_idx = [key for key, value in custom_config.labels_to_names.items() if value == self.objectLabelList[idx]]     # TODO fix this
-                        write_file.write(f"{label_idx[0]} {xywh[0]} {xywh[1]} {xywh[2]} {xywh[3]}\n")
+                        write_file.write(f"{label_idx[0]} {box_xywh_norm[0]} {box_xywh_norm[1]} {box_xywh_norm[2]} {box_xywh_norm[3]}\n")
 
                 print(f"saved to file: {results_file_path}")
         except PermissionError:
             print(f"Skipped saving file: {results_file_path} because not permission")
 
-    # convert bounding box from [min_x, min_y, max_x, max_y] to normalized [center_x, center_y, w, h]
-    def xyxy_to_xywhnorm(self, box_xyxy, img_width, img_height):
-        x_center = ((box_xyxy[2] + box_xyxy[0]) / 2) / img_width
-        y_center = ((box_xyxy[3] + box_xyxy[1]) / 2) / img_height
-        width = (box_xyxy[2] - box_xyxy[0]) / img_width
-        height = (box_xyxy[3] - box_xyxy[1]) / img_height
+    # # convert bounding box from [min_x, min_y, max_x, max_y] to normalized [center_x, center_y, w, h]
+    # def xyxy_to_xywhnorm(box_xyxy, img_width, img_height):
+    #     x_center = ((box_xyxy[2] + box_xyxy[0]) / 2) / img_width
+    #     y_center = ((box_xyxy[3] + box_xyxy[1]) / 2) / img_height
+    #     width = (box_xyxy[2] - box_xyxy[0]) / img_width
+    #     height = (box_xyxy[3] - box_xyxy[1]) / img_height
 
-        return (x_center, y_center, width, height)
+    #     return (x_center, y_center, width, height)
 
     def mouse_click(self, event):
         # Check if Updating BBox
